@@ -1,0 +1,52 @@
+name: Build iOS IPA
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install deps
+        run: npm install
+
+      - name: Add iOS platform
+        run: npx cap add ios
+
+      - name: Face ID permission
+        run: |
+          /usr/libexec/PlistBuddy -c "Add :NSFaceIDUsageDescription string Log in to Hamro G&G Auto" ios/App/App/Info.plist
+
+      - name: Sync
+        run: npx cap sync ios
+
+      - name: Build (unsigned)
+        run: |
+          xcodebuild \
+            -workspace ios/App/App.xcworkspace \
+            -scheme App \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build
+
+      - name: Package IPA
+        run: |
+          mkdir Payload
+          cp -R build/Build/Products/Release-iphoneos/App.app Payload/
+          zip -qr HamroGnGAuto.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HamroGnGAuto-ipa
+          path: HamroGnGAuto.ipa
